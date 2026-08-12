@@ -1,14 +1,23 @@
 import { dateBucket } from '@app/features/next-soup/soup-view/group-by-date';
 import { SoupSectionHeader } from '@app/features/next-soup/soup-view/section-header';
 import { SplitHeaderLeft } from '@components/app/split-layout/components/SplitHeader';
+import { openDocument } from '@core/component/LexicalMarkdown/component/core/BlockLink';
 import { StaticMarkdownContext } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
+import { useSplitNavigationHandler } from '@core/util/useSplitNavigationHandler';
 import { formatRelativeTimestamp } from '@entity/utils/timestamp';
+import { usePropertyEntityDisplay } from '@property/hooks';
 import type { ActivityEvent } from '@queries/activity/graphql/entity';
 import { createMyActivityQuery } from '@queries/activity/graphql/feed';
 import type { EntityType } from '@service-properties/generated/schemas/entityType';
 import type { GraphqlEntityType } from '@service-storage/graphql/generated/graphql';
 import { Button } from '@ui';
-import { type Component, createMemo, For, Show } from 'solid-js';
+import {
+  type Component,
+  createMemo,
+  For,
+  type ParentProps,
+  Show,
+} from 'solid-js';
 import { ActionGlyph } from './action-glyph';
 import { ActionPhrase } from './action-phrase';
 import { ActorName } from './actor-name';
@@ -157,44 +166,83 @@ function SentenceTimelineRow(props: { event: ActivityEvent }) {
           />
         </span>
       </div>
-      <div class="flex min-h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-0.5 hover:bg-hover/30">
-        <span class="shrink-0 font-medium">
-          <ActorName actorId={props.event.actorId} />
-        </span>
-        <Show
-          when={entityType()}
-          fallback={
+      <Show
+        when={entityType()}
+        fallback={
+          <div class={ROW_BODY_CLASS}>
+            <span class="shrink-0 font-medium">
+              <ActorName actorId={props.event.actorId} />
+            </span>
             <span class="min-w-0 truncate text-ink-muted">
               <ActionPhrase event={props.event} />
             </span>
-          }
-        >
-          {(type) => (
-            <>
-              <span class="min-w-0 text-ink-muted">
-                <Show
-                  when={actionAsPropertyChange(props.event.action)}
-                  fallback={parts().verb}
-                >
-                  {(change) => <PropertyChangeText action={change()} />}
-                </Show>
-              </span>
-              <Show when={parts().connector}>
-                {(connector) => (
-                  <span class="shrink-0 text-ink-muted">{connector()}</span>
-                )}
+            <Timestamp event={props.event} />
+          </div>
+        }
+      >
+        {(type) => (
+          <OpenEntityRowBody
+            entityId={props.event.entityId}
+            entityType={type()}
+          >
+            <span class="shrink-0 font-medium">
+              <ActorName actorId={props.event.actorId} />
+            </span>
+            <span class="min-w-0 text-ink-muted">
+              <Show
+                when={actionAsPropertyChange(props.event.action)}
+                fallback={parts().verb}
+              >
+                {(change) => <PropertyChangeText action={change()} />}
               </Show>
-              <span class="min-w-0 truncate">
-                <EntityMention
-                  entityId={props.event.entityId}
-                  entityType={type()}
-                />
-              </span>
-            </>
-          )}
-        </Show>
-        <Timestamp event={props.event} />
-      </div>
+            </span>
+            <Show when={parts().connector}>
+              {(connector) => (
+                <span class="shrink-0 text-ink-muted">{connector()}</span>
+              )}
+            </Show>
+            <span class="min-w-0 truncate">
+              <EntityMention
+                entityId={props.event.entityId}
+                entityType={type()}
+              />
+            </span>
+            <Timestamp event={props.event} />
+          </OpenEntityRowBody>
+        )}
+      </Show>
+    </div>
+  );
+}
+
+const ROW_BODY_CLASS =
+  'flex min-h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-0.5 hover:bg-hover/30';
+
+/**
+ * The clickable body of a feed row: clicking anywhere opens the row's entity
+ * (shift-click in a new split), same target as the inline mention. Rows whose
+ * entity isn't linkable (inaccessible, unmapped type) stay inert.
+ */
+function OpenEntityRowBody(
+  props: ParentProps<{ entityId: string; entityType: EntityType }>
+) {
+  const display = usePropertyEntityDisplay(
+    () => props.entityId,
+    () => props.entityType
+  );
+  const navHandlers = useSplitNavigationHandler<HTMLDivElement>((e) => {
+    const block = display.blockOrFileType();
+    if (!block) return;
+    openDocument(block, props.entityId, display.linkParams(), e.shiftKey);
+  });
+
+  return (
+    <div
+      {...navHandlers}
+      class={ROW_BODY_CLASS}
+      classList={{ 'cursor-pointer': display.blockOrFileType() !== null }}
+    >
+      {props.children}
     </div>
   );
 }
