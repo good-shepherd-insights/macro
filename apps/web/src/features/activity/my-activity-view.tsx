@@ -10,7 +10,8 @@ import type { EntityType } from '@service-properties/generated/schemas/entityTyp
 import type { GraphqlEntityType } from '@service-storage/graphql/generated/graphql';
 import { Button } from '@ui';
 import { For, Show } from 'solid-js';
-import { describeAction } from './describe-action';
+import { actionAsPropertyChange, describeAction } from './describe-action';
+import { PropertyChangeText } from './property-change';
 
 /**
  * Maps an activity event's canonical entity type onto the display vocabulary
@@ -105,8 +106,13 @@ function FeedRow(props: { event: ActivityEvent }) {
           </>
         )}
       </Show>
-      <span class="shrink-0 text-text-secondary">
-        {describeAction(props.event.action)}
+      <span class="min-w-0 shrink-0 text-text-secondary">
+        <Show
+          when={actionAsPropertyChange(props.event.action)}
+          fallback={describeAction(props.event.action)}
+        >
+          {(change) => <PropertyChangeText action={change()} />}
+        </Show>
       </span>
       <Show when={entityType()}>
         {(type) => (
