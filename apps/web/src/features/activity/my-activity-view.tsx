@@ -78,7 +78,7 @@ export function MyActivityView() {
           <Show
             when={groups().length > 0}
             fallback={
-              <p class="px-3 py-2 text-sm text-text-secondary">
+              <p class="px-3 py-2 text-sm text-ink-muted">
                 {feed.isLoading
                   ? 'Loading…'
                   : feed.isError
@@ -147,7 +147,7 @@ function FeedRow(props: { event: ActivityEvent }) {
           )}
         </Show>
       </span>
-      <span class="ml-auto shrink-0 text-right text-xs font-medium text-ink-extra-muted">
+      <span class="ml-auto shrink-0 text-right font-medium text-ink-extra-muted text-xs">
         {formatRelativeTimestamp(new Date(props.event.occurredAt), {
           condensed: true,
         })}
