@@ -58,7 +58,11 @@ export function MyActivityView() {
           when={events().length > 0}
           fallback={
             <p class="text-sm text-text-secondary">
-              {feed.isLoading ? 'Loading…' : 'No activity yet.'}
+              {feed.isLoading
+                ? 'Loading…'
+                : feed.isError
+                  ? 'Activity is unavailable right now. Try again in a moment.'
+                  : 'No activity yet.'}
             </p>
           }
         >
