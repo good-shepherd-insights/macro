@@ -390,7 +390,17 @@ export const StorageService = new Svc('Document++ Storage Service API')
   })
   .fn('getPins', {
     description: schemas.getPinsHandlerResponse.description!,
-    args: schemas.getRecentActivityHandlerQueryParams.shape,
+    // The pins endpoint declares no query params in its OpenAPI spec; these
+    // mirror what it actually accepts (it used to borrow the schema of the
+    // retired /activity endpoint).
+    args: {
+      limit: z
+        .number()
+        .describe(
+          'The maximum number of items to retreive. Default 10, max 100.'
+        ),
+      offset: z.number().describe('The offset to start from. Default 0.'),
+    },
     result: schemas.getPinsHandlerResponse.shape.data.unwrap().options[1].shape,
     throws: withFetchErrors(),
   })

@@ -1,3 +1,4 @@
+import { useActivityFeedFlag } from '@app/features/activity/use-activity-feed-flag';
 import { EventComposer } from '@app/features/calendar/events/EventComposer';
 import type { EventEditorInitialValues } from '@app/features/calendar/events/EventEditorForm';
 import type { CalendarEvent } from '@app/features/calendar/events/types';
@@ -27,7 +28,6 @@ import { useIsAuthenticated } from '@core/auth';
 import { LoadingBlock } from '@core/component/LoadingBlock';
 import {
   DEV_MODE_ENV,
-  ENABLE_ACTIVITY,
   ENABLE_CRM,
   ENABLE_REMINDERS,
   LOCAL_ONLY,
@@ -178,24 +178,34 @@ registerComponent(
   })
 );
 
-const ActivityView = lazy(() =>
-  import('@app/features/activity-timeline/activity-view').then((module) => ({
-    default: module.ActivityView,
+const MyActivityView = lazy(() =>
+  import('@app/features/activity/my-activity-view').then((module) => ({
+    default: module.MyActivityView,
   }))
 );
 
-registerComponent(
-  'activity',
-  withAuth(() => {
-    // Keep the registration so direct navigation and restored splits can
-    // recover safely without loading the data-owning Activity view.
-    if (!ENABLE_ACTIVITY) {
-      return <RedirectSplit to={{ type: 'component', id: 'inbox' }} />;
-    }
-    usePageViewTracking('activity');
-    return <ActivityView />;
-  })
-);
+function TrackedMyActivityView() {
+  usePageViewTracking('activity');
+  return <MyActivityView />;
+}
+
+function MyActivityViewWrapper() {
+  const activityFeedEnabled = useActivityFeedFlag();
+
+  // Registered even when the flag is off so a bookmarked /activity or a
+  // restored split recovers to the inbox instead of an empty split, and the
+  // data-owning feed view is never mounted.
+  return (
+    <Show
+      when={activityFeedEnabled()}
+      fallback={<RedirectSplit to={{ type: 'component', id: 'inbox' }} />}
+    >
+      <TrackedMyActivityView />
+    </Show>
+  );
+}
+
+registerComponent('activity', withAuth(MyActivityViewWrapper));
 
 registerComponent(
   'reminders',
