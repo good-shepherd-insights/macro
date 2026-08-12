@@ -171,7 +171,7 @@ function SentenceTimelineRow(props: { event: ActivityEvent }) {
         >
           {(type) => (
             <>
-              <span class="min-w-0 shrink-0 text-ink-muted">
+              <span class="min-w-0 text-ink-muted">
                 <Show
                   when={actionAsPropertyChange(props.event.action)}
                   fallback={parts().verb}
