@@ -14,6 +14,7 @@ import { NonMemberChannelPreview } from '@app/features/next-soup/soup-view/non-m
 import { SoupView } from '@app/features/next-soup/soup-view/soup-view';
 import { SettingsPanelComponentWrapper } from '@app/features/settings/Settings';
 import { useAnalytics } from '@app/lib/analytics/analytics-context';
+import { usePosthog } from '@app/lib/analytics/posthog';
 import { globalSplitManager } from '@app/signal/splitLayout';
 import { ChannelCompose } from '@block-channel/component/Compose';
 import { EmailCompose } from '@block-email/component/compose/Compose';
@@ -191,14 +192,21 @@ function TrackedMyActivityView() {
 
 function MyActivityViewWrapper() {
   const activityFeedEnabled = useActivityFeedFlag();
+  const posthog = usePosthog();
 
   // Registered even when the flag is off so a bookmarked /activity or a
   // restored split recovers to the inbox instead of an empty split, and the
-  // data-owning feed view is never mounted.
+  // data-owning feed view is never mounted. The redirect replaces the split
+  // irreversibly, so it must wait for PostHog to actually answer — on a
+  // fresh reload the flag reads false until flags load.
   return (
     <Show
       when={activityFeedEnabled()}
-      fallback={<RedirectSplit to={{ type: 'component', id: 'inbox' }} />}
+      fallback={
+        <Show when={posthog.flagsLoaded()}>
+          <RedirectSplit to={{ type: 'component', id: 'inbox' }} />
+        </Show>
+      }
     >
       <TrackedMyActivityView />
     </Show>

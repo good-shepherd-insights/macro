@@ -16,8 +16,14 @@ export const [PosthogProvider, usePosthog] = createAssertedContextProvider(
     const analytics = useAnalytics();
 
     const [featureFlags, setFeatureFlags] = createSignal<string[]>([]);
+    // Distinguishes "flags not fetched yet" from "no flags enabled": both
+    // leave featureFlags empty, but destructive flag-off fallbacks (e.g.
+    // RedirectSplit) must not fire before the answer arrives. Set even on
+    // errorsLoading so a PostHog outage degrades to flags-off, not a hang.
+    const [flagsLoaded, setFlagsLoaded] = createSignal(false);
 
     const unsub = analytics.posthog.onFeatureFlags((flags, _, ctx) => {
+      setFlagsLoaded(true);
       if (ctx?.errorsLoading) return;
 
       setFeatureFlags(flags);
@@ -25,7 +31,7 @@ export const [PosthogProvider, usePosthog] = createAssertedContextProvider(
 
     onCleanup(unsub);
 
-    return { instance: analytics.posthog, featureFlags };
+    return { instance: analytics.posthog, featureFlags, flagsLoaded };
   }
 );
 
