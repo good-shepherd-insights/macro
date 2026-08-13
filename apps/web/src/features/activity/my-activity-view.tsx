@@ -11,13 +11,7 @@ import { createMyActivityQuery } from '@queries/activity/graphql/feed';
 import type { EntityType } from '@service-properties/generated/schemas/entityType';
 import type { GraphqlEntityType } from '@service-storage/graphql/generated/graphql';
 import { Button } from '@ui';
-import {
-  type Component,
-  createMemo,
-  For,
-  type ParentProps,
-  Show,
-} from 'solid-js';
+import { type Component, createMemo, For, Show } from 'solid-js';
 import { ActionGlyph } from './action-glyph';
 import { ActionPhrase } from './action-phrase';
 import { ActorName } from './actor-name';
@@ -30,9 +24,11 @@ import { PropertyChangeText } from './property-change';
 
 /**
  * Maps an activity event's canonical entity type onto the display vocabulary
- * used by the shared entity name/icon/link resolver. Types the resolver
- * can't render (teams, static files, …) return undefined and the row shows
- * without an entity reference.
+ * used by the shared entity name/icon/link resolver. Only types the resolver
+ * can actually name are mapped — calls, calendar events, and companies have
+ * no preview/name source there and would render as a stuck "Loading…" or a
+ * raw id, so they (like teams and static files) return undefined and the row
+ * shows without an entity reference.
  */
 function displayEntityType(
   entityType: GraphqlEntityType
@@ -48,12 +44,6 @@ function displayEntityType(
       return 'THREAD';
     case 'CHANNEL':
       return 'CHANNEL';
-    case 'CALL':
-      return 'CALL_RECORD';
-    case 'CALENDAR_EVENT':
-      return 'CALENDAR_EVENT';
-    case 'CRM_COMPANY':
-      return 'COMPANY';
     case 'USER':
       return 'USER';
     default:
@@ -153,7 +143,6 @@ function Timestamp(props: { event: ActivityEvent }) {
  */
 function SentenceTimelineRow(props: { event: ActivityEvent }) {
   const entityType = () => displayEntityType(props.event.entityType);
-  const parts = () => describeActionForEntity(props.event.action);
 
   return (
     <div class="mx-1 flex w-[calc(100%-0.5rem)] items-stretch gap-1 px-2 text-sm">
@@ -180,36 +169,7 @@ function SentenceTimelineRow(props: { event: ActivityEvent }) {
           </div>
         }
       >
-        {(type) => (
-          <OpenEntityRowBody
-            entityId={props.event.entityId}
-            entityType={type()}
-          >
-            <span class="shrink-0 font-medium">
-              <ActorName actorId={props.event.actorId} />
-            </span>
-            <span class="min-w-0 text-ink-muted">
-              <Show
-                when={actionAsPropertyChange(props.event.action)}
-                fallback={parts().verb}
-              >
-                {(change) => <PropertyChangeText action={change()} />}
-              </Show>
-            </span>
-            <Show when={parts().connector}>
-              {(connector) => (
-                <span class="shrink-0 text-ink-muted">{connector()}</span>
-              )}
-            </Show>
-            <span class="min-w-0 truncate">
-              <EntityMention
-                entityId={props.event.entityId}
-                entityType={type()}
-              />
-            </span>
-            <Timestamp event={props.event} />
-          </OpenEntityRowBody>
-        )}
+        {(type) => <EntityRow event={props.event} entityType={type()} />}
       </Show>
     </div>
   );
@@ -219,21 +179,21 @@ const ROW_BODY_CLASS =
   'flex min-h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-0.5 hover:bg-hover/30';
 
 /**
- * The clickable body of a feed row: clicking anywhere opens the row's entity
- * (shift-click in a new split), same target as the inline mention. Rows whose
+ * A feed row that names its entity. Resolves the entity's display once and
+ * shares it between the row-wide click-to-open (shift-click for a new split,
+ * same target as the inline mention) and the mention itself. Rows whose
  * entity isn't linkable (inaccessible, unmapped type) stay inert.
  */
-function OpenEntityRowBody(
-  props: ParentProps<{ entityId: string; entityType: EntityType }>
-) {
+function EntityRow(props: { event: ActivityEvent; entityType: EntityType }) {
+  const parts = () => describeActionForEntity(props.event.action);
   const display = usePropertyEntityDisplay(
-    () => props.entityId,
+    () => props.event.entityId,
     () => props.entityType
   );
   const navHandlers = useSplitNavigationHandler<HTMLDivElement>((e) => {
     const block = display.blockOrFileType();
     if (!block) return;
-    openDocument(block, props.entityId, display.linkParams(), e.shiftKey);
+    openDocument(block, props.event.entityId, display.linkParams(), e.shiftKey);
   });
 
   return (
@@ -242,7 +202,26 @@ function OpenEntityRowBody(
       class={ROW_BODY_CLASS}
       classList={{ 'cursor-pointer': display.blockOrFileType() !== null }}
     >
-      {props.children}
+      <span class="shrink-0 font-medium">
+        <ActorName actorId={props.event.actorId} />
+      </span>
+      <span class="min-w-0 text-ink-muted">
+        <Show
+          when={actionAsPropertyChange(props.event.action)}
+          fallback={parts().verb}
+        >
+          {(change) => <PropertyChangeText action={change()} />}
+        </Show>
+      </span>
+      <Show when={parts().connector}>
+        {(connector) => (
+          <span class="shrink-0 text-ink-muted">{connector()}</span>
+        )}
+      </Show>
+      <span class="min-w-0 truncate">
+        <EntityMention entityId={props.event.entityId} display={display} />
+      </span>
+      <Timestamp event={props.event} />
     </div>
   );
 }

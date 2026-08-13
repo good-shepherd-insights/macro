@@ -1,8 +1,10 @@
 import { StaticMarkdown } from '@core/component/LexicalMarkdown/component/core/StaticMarkdown';
 import { unifiedListMarkdownTheme } from '@core/component/LexicalMarkdown/theme';
-import { usePropertyEntityDisplay } from '@property/hooks';
-import type { EntityType } from '@service-properties/generated/schemas/entityType';
+import type { usePropertyEntityDisplay } from '@property/hooks';
 import { createMemo, Show } from 'solid-js';
+
+/** The resolved display accessors for one entity, from the shared resolver. */
+export type EntityDisplay = ReturnType<typeof usePropertyEntityDisplay>;
 
 /**
  * An activity row's entity reference rendered as a real document mention —
@@ -10,23 +12,21 @@ import { createMemo, Show } from 'solid-js';
  * preview, access states, and click-to-open. Entity kinds without a block
  * mapping fall back to a plain icon + name chip.
  *
- * Must render under a `<StaticMarkdownContext>` ancestor.
+ * Takes the already-resolved display from the row (which also needs it for
+ * click-to-open) rather than resolving its own, so each row subscribes to
+ * the entity's preview once. Must render under a `<StaticMarkdownContext>`
+ * ancestor.
  */
 export function EntityMention(props: {
   entityId: string;
-  entityType: EntityType;
+  display: EntityDisplay;
 }) {
-  const display = usePropertyEntityDisplay(
-    () => props.entityId,
-    () => props.entityType
-  );
-
   const mentionMarkdown = createMemo(() => {
-    const blockName = display.blockOrFileType();
+    const blockName = props.display.blockOrFileType();
     if (!blockName) return undefined;
     return `<m-document-mention>${JSON.stringify({
       documentId: props.entityId,
-      documentName: display.name(),
+      documentName: props.display.name(),
       blockName,
     })}</m-document-mention>`;
   });
@@ -36,8 +36,8 @@ export function EntityMention(props: {
       when={mentionMarkdown()}
       fallback={
         <span class="inline-flex min-w-0 items-center gap-1.5 text-ink">
-          <span class="flex shrink-0 items-center">{display.icon()}</span>
-          <span class="truncate">{display.name()}</span>
+          <span class="flex shrink-0 items-center">{props.display.icon()}</span>
+          <span class="truncate">{props.display.name()}</span>
         </span>
       }
     >
