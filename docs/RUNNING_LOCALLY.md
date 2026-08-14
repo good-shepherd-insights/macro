@@ -109,11 +109,46 @@ A `--no-doppler` stack boots with deterministic stubs for every value the servic
 | Integration | Keys | Stub behavior |
 | --- | --- | --- |
 | Google login / Gmail | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_KEY` | Google SSO and Gmail inbox linking are unavailable. Local signup still works. The email service reports no Gmail grant and skips inbox syncing. |
+| ^ with real credentials, Gmail API still disabled | (same keys, real values) | Creating the OAuth client is not enough — the Gmail API must be separately enabled on that Google Cloud project (Console → APIs & Services → Enable APIs → "Gmail API"). Without it, sign-in/consent succeeds normally (the browser lands back in the app looking fine), but every Gmail API call after that 403s server-side and the mailbox link is silently never persisted (`email_links` stays empty). Only visible in `email_service`'s logs: `Gmail API has not been used in project <N> before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=<N>`. Fix: click Enable at that URL (only the project owner can), wait a couple minutes for propagation, retry. |
+| ^ with Gmail API enabled, `GMAIL_GCP_QUEUE` still a placeholder | `GMAIL_GCP_QUEUE` | Gmail's `users.watch` (push-notification registration) is called synchronously inside `/email/init`, so "add inbox" fails outright — not just background sync — until this is a real Pub/Sub topic path. Stub value `local-dev-placeholder` gets sent as-is as the `topicName`; Google rejects it: `Gmail API returned 400 Bad Request: ... "Invalid topic name format. Should follow 'projects/my-project-id/topics/my-topic-id'"` (in `email_service` logs, from `crates/gmail_client/src/watch.rs`). Needs real GCP setup — see steps below. |
 | GitHub login | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_IDP_ID` | Login with GitHub is unavailable |
 | Stripe billing | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID` | Checkout and subscription endpoints fail. Signup still works: the create-user webhook detects the stub key and skips the real Stripe call. It stores a placeholder customer id instead. |
 | CloudFront signed URLs | `DOCUMENT_STORAGE_SERVICE_CLOUDFRONT_DISTRIBUTION_URL`, `DOCUMENT_STORAGE_SERVICE_CLOUDFRONT_SIGNER_PUBLIC_KEY_ID`, `DOCUMENT_STORAGE_SERVICE_CLOUDFRONT_SIGNER_PRIVATE_KEY` | Document download URLs are unsigned (fine against local S3) |
 
 The other stubbed keys (`REDIS_HOST`, `MACRO_DB_URL`, `INTERNAL_API_KEY`, `AUTHENTICATION_SERVICE_SECRET_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`) are internal plumbing with correct local values — you never need to override them.
+
+### Setting up `GMAIL_GCP_QUEUE` for real (Google Cloud Console steps)
+
+This is separate GCP infrastructure, not just a config value — nothing in this
+repo provisions it (no `@pulumi/gcp` anywhere; it's fully manual). On the same
+Google Cloud project as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET_KEY`:
+
+1. **Enable the Cloud Pub/Sub API** (separate toggle from the Gmail API) —
+   Console → APIs & Services → Enable APIs → "Cloud Pub/Sub API".
+2. **Create a Pub/Sub topic** — Pub/Sub → Topics → Create Topic. Note its
+   full resource name: `projects/<project-id>/topics/<topic-name>`.
+3. **Grant Gmail's push service account publish rights on that topic** —
+   open the topic → Permissions → Add Principal → member
+   `gmail-api-push@system.gserviceaccount.com` → role "Pub/Sub Publisher".
+   Google's `users.watch` call itself will fail (a *different* error than
+   the "invalid topic name" one above) without this grant, even with a
+   correctly-formatted topic name.
+4. **Set `GMAIL_GCP_QUEUE`** in `local.env` to that full resource name
+   (`projects/<project-id>/topics/<topic-name>`), then restart the stack.
+
+Steps 1-4 are enough to make `users.watch` succeed and unblock "add inbox."
+For push notifications to actually be *delivered* back to this app (so new
+mail syncs without polling), one more step is needed:
+
+5. **Create a Push subscription on the topic**, pointing at
+   `email_service`'s webhook endpoint —
+   `handle: POST https://<your-tunnel-domain>/email/gmail/webhook`
+   (`services/email_service/src/api/gmail/webhook.rs`, reached externally
+   through the same `/email` Caddy prefix `email_service` already uses).
+   That handler validates a Google-signed token on the request before
+   trusting it (`validate_google_token`, gated behind the
+   `gmail_webhook_auth` Cargo feature) — check whether that feature is
+   enabled in the build you're running before assuming push delivery is live.
 
 To turn on an integration, create a `local.env` with the real values. Then pass it
 to `run_local`:
