@@ -2,6 +2,7 @@
 //! backend to be reachable through the proxy, then launch `bun run dev` pointed
 //! at the proxy origin.
 
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -105,7 +106,21 @@ pub fn build_static(
 /// and exercises the real browser -> proxy -> collector path. Left unset
 /// otherwise. This overrides the bare-dev defaults in apps/web/.env.local
 /// (Vite lets process env win).
-fn dev_env(instance: &Instance, mode: Mode, traces_enabled: bool) -> Vec<(String, String)> {
+///
+/// `resolved_env` is the same merged `--env-file` overlay used for the docker
+/// services (see `env_layer::resolve`) — the generator never sets these three
+/// `VITE_*` keys itself, so a value present here can only have come from an
+/// explicit user override (e.g. a public tunnel origin), which wins over the
+/// computed localhost default below. Without this, an `--env-file` override
+/// for these keys was silently discarded: the frontend dev server is spawned
+/// directly by this xtask process, not a container reading the generated env
+/// file, so it never saw the override at all.
+fn dev_env(
+    instance: &Instance,
+    mode: Mode,
+    traces_enabled: bool,
+    resolved_env: &BTreeMap<String, String>,
+) -> Vec<(String, String)> {
     let mut env = vec![
         (
             "PORT".to_string(),
@@ -114,13 +129,19 @@ fn dev_env(instance: &Instance, mode: Mode, traces_enabled: bool) -> Vec<(String
         ("VITE_LOCAL_SERVERS".to_string(), "ALL".to_string()),
         (
             "VITE_LOCAL_BACKEND_ORIGIN".to_string(),
-            proxy::url(instance),
+            resolved_env
+                .get("VITE_LOCAL_BACKEND_ORIGIN")
+                .cloned()
+                .unwrap_or_else(|| proxy::url(instance)),
         ),
     ];
     if mode.spec().runs_local_infra {
         env.push((
             "VITE_AI_EDITING_WORKER_URL".to_string(),
-            format!("{}/ai-editing", proxy::url(instance)),
+            resolved_env
+                .get("VITE_AI_EDITING_WORKER_URL")
+                .cloned()
+                .unwrap_or_else(|| format!("{}/ai-editing", proxy::url(instance))),
         ));
     }
     if traces_enabled {
@@ -207,6 +228,7 @@ pub fn start(
     instance: &Instance,
     mode: Mode,
     traces_enabled: bool,
+    resolved_env: &BTreeMap<String, String>,
 ) -> Result<Option<Frontend>> {
     if mode.spec().wait_backend_before_frontend {
         wait_backend_ready(stage, instance)?;
@@ -249,7 +271,7 @@ pub fn start(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    for (k, v) in dev_env(instance, mode, traces_enabled) {
+    for (k, v) in dev_env(instance, mode, traces_enabled, resolved_env) {
         cmd.env(k, v);
     }
     let mut child = cmd.spawn().context("launching `bun run dev`")?;

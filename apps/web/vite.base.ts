@@ -195,6 +195,7 @@ export const createAppViteConfig = (): UserConfigFn => {
           host: process.env.TAURI_DEV_HOST || 'localhost',
         },
         cors: true,
+        allowedHosts: true,
         watch: {
           usePolling: true,
           interval: 100,

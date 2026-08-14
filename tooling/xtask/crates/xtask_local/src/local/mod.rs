@@ -252,7 +252,7 @@ pub fn run_stack(mode: Mode, args: &cli::RunArgs) -> Result<()> {
         stage.note("frontend disabled (--no-frontend)");
         None
     } else {
-        frontend::start(&stage, &instance, mode, args.traces.is_some())?
+        frontend::start(&stage, &instance, mode, args.traces.is_some(), &env.merged)?
     };
 
     summary::print(

@@ -43,7 +43,13 @@ pub(crate) fn is_allowed_original_url(url: &Url) -> bool {
         "http" => matches!(url.host_str(), Some("localhost" | "tauri.localhost")),
         "https" => matches!(
             url.host_str(),
-            Some("localhost" | "tauri.localhost" | "dev.macro.com" | "macro.com")
+            Some(
+                "localhost"
+                    | "tauri.localhost"
+                    | "dev.macro.com"
+                    | "macro.com"
+                    | "macro.goodshepherdinsights.com"
+            )
         ),
         _ => false,
     }

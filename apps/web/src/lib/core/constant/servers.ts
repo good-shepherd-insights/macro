@@ -65,11 +65,31 @@ const wsProxyOrigin = proxyOrigin?.replace(/^http/, 'ws');
 // any `*.localhost` alias. Hostnames get separate cookie jars while ports
 // share them, so opening tabs like alice.localhost:3000 / carol.localhost:3000
 // gives each seeded persona an isolated login session against the one backend.
+//
+// Only swap when the configured hostname is itself a generic local
+// placeholder (localhost, a bare IP, a `*.localhost` alias) — that's the
+// case this trick was designed for. A configured origin that's already a
+// real, distinct hostname (e.g. a tunnel domain routing the backend on its
+// own subdomain) is trusted as-is: it IS the intended backend, not a
+// placeholder standing in for "whatever host the page loaded from".
+const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+function isLocalPlaceholderHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.endsWith('.localhost') ||
+    IPV4_RE.test(hostname)
+  );
+}
+
 function resolveProxyOrigin(configured: string | undefined) {
   if (!configured || typeof window === 'undefined') return configured;
   try {
     const url = new URL(configured);
-    url.hostname = window.location.hostname;
+    if (isLocalPlaceholderHost(url.hostname)) {
+      url.hostname = window.location.hostname;
+    }
     return url.origin;
   } catch {
     return configured;

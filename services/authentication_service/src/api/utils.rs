@@ -9,6 +9,10 @@ use url::Url;
 
 maybe_env_vars! {
     struct FrontendPort;
+    /// Overrides the auth cookies' `Domain` attribute in local deployments
+    /// that span multiple subdomains (e.g. a tunnel), where the default
+    /// host-only cookie set by one subdomain isn't sent to another.
+    struct CookieDomain;
 }
 
 /// Generates a random 25 character session code
@@ -60,10 +64,10 @@ pub fn default_redirect_url() -> Url {
     }
 }
 
-fn domain<'a>() -> Option<&'a str> {
+fn domain() -> Option<String> {
     match Environment::new_or_prod() {
-        Environment::Local => None,
-        Environment::Production | Environment::Develop => Some("macro.com"),
+        Environment::Local => CookieDomain::new().and_then(|d| d.value().map(str::to_owned)),
+        Environment::Production | Environment::Develop => Some("macro.com".to_owned()),
     }
 }
 
