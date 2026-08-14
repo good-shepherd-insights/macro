@@ -573,7 +573,7 @@ pub fn snapshot_status(args: &SnapshotArgs) -> Result<()> {
     // otherwise the key reported here could differ from the key `up` computes.
     let env = env_layer::resolve(Mode::Local, &instance, false, None, true)?;
     let google = super::kickstart::GoogleIdp::from_env(&env.merged);
-    super::fusionauth::write_kickstart(&instance, google.as_ref())?;
+    super::fusionauth::write_kickstart(&instance, google.as_ref(), &env.merged)?;
     let plan = snapshot::Plan::compute(&instance)?;
     if args.json {
         println!(

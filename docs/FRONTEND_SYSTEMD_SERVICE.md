@@ -159,9 +159,13 @@ This service only manages the frontend dev server process. It does not
 address:
 - The Docker backend containers — those already have their own restart
   policies and were not affected by this issue.
-- FusionAuth's `authorizedRedirectURLs` durability — a *separate*, still-open
-  issue where a full `just run_local` teardown/recreate cycle wipes
-  FusionAuth's database, losing any live-patched redirect URL
-  authorizations for the tunnel domain (they'd need to be re-applied via
-  FusionAuth's admin API, or `kickstart.rs` would need a similar
-  env-override read as the frontend fix above, which has not been done).
+
+FusionAuth's `authorizedRedirectURLs` durability — the same class of issue as
+the frontend one above, where a full `just run_local` teardown/recreate cycle
+wiped FusionAuth's database and any live-patched redirect URL authorization
+for the tunnel domain along with it — is now fixed the same way:
+`tooling/xtask/crates/xtask_local/src/local/kickstart.rs`'s `build()` reads
+`FUSIONAUTH_OAUTH_REDIRECT_URI` from the resolved env and includes it in the
+generated kickstart's `authorizedRedirectURLs` whenever it differs from the
+computed local default, so it's authorized fresh on every rebuild — no more
+manual re-patching via FusionAuth's admin API after each `run_local`.

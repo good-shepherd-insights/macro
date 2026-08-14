@@ -511,7 +511,7 @@ fn prepare(
     }
     if mode.spec().runs_local_infra {
         let google = kickstart::GoogleIdp::from_env(&env.merged);
-        fusionauth::write_kickstart(instance, google.as_ref())?;
+        fusionauth::write_kickstart(instance, google.as_ref(), &env.merged)?;
     }
     if args.build.build_aux_services {
         build_aux_service_images(stage, instance, &env)?;
