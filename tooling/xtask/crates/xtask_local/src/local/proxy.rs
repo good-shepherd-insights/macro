@@ -137,6 +137,14 @@ const SPECIAL_ROUTES: &str = r#"    @websocket path /websocket /websocket/*
     handle_path /ai-editing/* {
         reverse_proxy ai-editing-worker:8933
     }
+    # authentication_service's own OAuth2 account-link callback
+    # (format_redirect_uri() in api/oauth2/mod.rs builds this from BASE_URL
+    # with no /auth prefix, since BASE_URL is meant to be the service's own
+    # dedicated public host). No prefix strip: authentication_service's own
+    # router already nests its oauth2 routes at this exact path internally.
+    handle /oauth2/* {
+        reverse_proxy authentication-service:8080
+    }
 "#;
 
 const MAILPIT_ROUTE: &str = r#"    # Mailpit serves itself under /mailpit (MP_WEBROOT), so no prefix strip —

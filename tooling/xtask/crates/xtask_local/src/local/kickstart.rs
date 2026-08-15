@@ -54,13 +54,18 @@ impl GoogleIdp {
 /// Build the kickstart document. `lambda_body` is the JS source of
 /// `populate_jwt_local.js`; `reconcile_lambda_body` is the reconcile lambda
 /// attached to `google_gmail` (only used when `google` is configured); redirect
-/// URLs are templated from the instance ports.
+/// URLs are templated from the instance ports, plus `FUSIONAUTH_OAUTH_REDIRECT_URI`
+/// from the resolved env when it differs from the computed local default (e.g. a
+/// tunnel domain) — otherwise a full `run_local` rebuild wipes FusionAuth's DB
+/// and silently drops any such URL that was only ever live-patched via the admin
+/// API after the fact.
 pub fn build(
     frontend_port: u16,
     auth_port: u16,
     lambda_body: &str,
     reconcile_lambda_body: &str,
     google: Option<&GoogleIdp>,
+    env: &BTreeMap<String, String>,
 ) -> Value {
     let app_id = identity::APPLICATION_ID;
     let tenant_id = identity::TENANT_ID;
@@ -68,13 +73,20 @@ pub fn build(
     let lambda_id = identity::POPULATE_JWT_LAMBDA_ID;
     let template_id = identity::PASSWORDLESS_EMAIL_TEMPLATE_ID;
 
-    let redirect_urls = json!([
+    let local_redirect_uri = identity::oauth_redirect_uri(auth_port);
+    let mut redirect_urls = vec![
         format!("http://localhost:{frontend_port}/app"),
-        identity::oauth_redirect_uri(auth_port),
-        "http://authentication-service:8080/oauth/redirect",
-        "http://localhost:8085/oauth/redirect",
-        "https://mcp-server-local.macro.com/oauth/callback",
-    ]);
+        local_redirect_uri.clone(),
+        "http://authentication-service:8080/oauth/redirect".to_string(),
+        "http://localhost:8085/oauth/redirect".to_string(),
+        "https://mcp-server-local.macro.com/oauth/callback".to_string(),
+    ];
+    if let Some(url) = env.get("FUSIONAUTH_OAUTH_REDIRECT_URI")
+        && *url != local_redirect_uri
+    {
+        redirect_urls.push(url.clone());
+    }
+    let redirect_urls = json!(redirect_urls);
 
     // Kickstart executes these in order, so each request must come after the
     // entities it references. Dependency chain:

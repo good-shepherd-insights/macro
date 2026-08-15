@@ -45,6 +45,7 @@ fn kickstart_without_google_has_no_idp_requests() {
         "function populate() {}",
         "function reconcile() {}",
         None,
+        &env(&[]),
     );
     let urls: Vec<&str> = doc["requests"]
         .as_array()
@@ -55,6 +56,84 @@ fn kickstart_without_google_has_no_idp_requests() {
     assert!(
         !urls.iter().any(|u| u.contains("/api/identity-provider")),
         "no Google client -> no IdP requests: {urls:?}"
+    );
+}
+
+/// A tunnel/dev deployment sets `FUSIONAUTH_OAUTH_REDIRECT_URI` to a public
+/// URL that differs from the computed `http://localhost:{port}/oauth/redirect`
+/// default — that URL must survive being authorized in FusionAuth across a
+/// full `run_local` rebuild instead of requiring a live admin-API re-patch
+/// every time.
+#[test]
+fn kickstart_authorizes_a_tunnel_redirect_uri_override() {
+    let doc = build(
+        3000,
+        8080,
+        "function populate() {}",
+        "function reconcile() {}",
+        None,
+        &env(&[(
+            "FUSIONAUTH_OAUTH_REDIRECT_URI",
+            "https://macro-auth.example.com/oauth/redirect",
+        )]),
+    );
+    let app_request = doc["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["url"].as_str().unwrap().starts_with("/api/application/"))
+        .expect("missing application request");
+    let urls: Vec<&str> = app_request["body"]["application"]["oauthConfiguration"]
+        ["authorizedRedirectURLs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(
+        urls.contains(&"https://macro-auth.example.com/oauth/redirect"),
+        "tunnel override must be authorized: {urls:?}"
+    );
+    assert!(
+        urls.contains(&"http://localhost:8080/oauth/redirect"),
+        "the computed local default must still be authorized too: {urls:?}"
+    );
+}
+
+/// Without an override, the env-driven URL must not duplicate the computed
+/// local default already in the list.
+#[test]
+fn kickstart_skips_the_override_when_it_matches_the_local_default() {
+    let doc = build(
+        3000,
+        8080,
+        "function populate() {}",
+        "function reconcile() {}",
+        None,
+        &env(&[(
+            "FUSIONAUTH_OAUTH_REDIRECT_URI",
+            "http://localhost:8080/oauth/redirect",
+        )]),
+    );
+    let app_request = doc["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["url"].as_str().unwrap().starts_with("/api/application/"))
+        .expect("missing application request");
+    let urls: Vec<&str> = app_request["body"]["application"]["oauthConfiguration"]
+        ["authorizedRedirectURLs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        urls.iter()
+            .filter(|u| **u == "http://localhost:8080/oauth/redirect")
+            .count(),
+        1,
+        "must not duplicate the local default: {urls:?}"
     );
 }
 
@@ -70,6 +149,7 @@ fn kickstart_with_google_adds_lambda_and_both_idps_after_the_application() {
         "function populate() {}",
         "function reconcile() {}",
         Some(&google),
+        &env(&[]),
     );
     let requests = doc["requests"].as_array().unwrap();
 
@@ -120,6 +200,7 @@ fn kickstart_adopts_the_default_tenant() {
         "function populate() {}",
         "function reconcile() {}",
         None,
+        &env(&[]),
     );
     assert_eq!(
         doc["variables"]["defaultTenantId"],

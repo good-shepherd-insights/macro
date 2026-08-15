@@ -30,7 +30,11 @@ fn read_lambda(file: xtask_paths::RepoFile<'static>) -> Result<String> {
 /// `google`/`google_gmail` OIDC IdPs so the email connect flows work locally;
 /// the generated file is gitignored, and the init-snapshot key hashes it, so
 /// adding/removing the Google client re-inits the stack automatically.
-pub fn write_kickstart(instance: &Instance, google: Option<&kickstart::GoogleIdp>) -> Result<()> {
+pub fn write_kickstart(
+    instance: &Instance,
+    google: Option<&kickstart::GoogleIdp>,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<()> {
     let dir = gen_compose::kickstart_dir(instance);
     std::fs::create_dir_all(&dir)
         .with_context(|| format!("creating kickstart dir {}", dir.display()))?;
@@ -41,6 +45,7 @@ pub fn write_kickstart(instance: &Instance, google: Option<&kickstart::GoogleIdp
         &read_lambda(POPULATE_JWT_LAMBDA)?,
         &read_lambda(RECONCILE_LAMBDA)?,
         google,
+        env,
     );
     let json = serde_json::to_string_pretty(&doc)? + "\n";
     std::fs::write(dir.join("kickstart.json"), json)
