@@ -1561,6 +1561,22 @@ settings and confirms a fresh proposal. Identical retries reuse the saved link.
 Old pending booking review requests can be dismissed so the agent can resume with
 conversational confirmation.
 
+## Image attachments and model selection
+
+Attach images using the plus button, paste, or drop. Image-capable models receive
+uploaded images as normalized inline content, including attachments from earlier
+turns. Test an image-only prompt and a text-plus-image prompt, then follow up
+without reattaching the image.
+
+Text-only model choices show a description and a composer warning. Pasted,
+dropped, and picked images should be refused before upload; document attachments
+and text should still work. If an image is already attached when switching to a
+text-only model, keep the draft and image chip but disable Send until the image
+is removed or a vision model is selected. Switching an existing image conversation
+to a text-only model is rejected by the backend when sending, with guidance to
+choose a vision model or start a conversation without images.
+
+
 ## Accelerated model speed
 
 The lightning button beside the model selector enables Ultrafast for GPT-6 Astra
