@@ -352,7 +352,11 @@ registerComponent(
   () => <ChannelsRouteView />,
   () => composableLayout()
 );
-registerComponent('calls', () => <CallsRouteView />);
+registerComponent(
+  'calls',
+  () => <CallsRouteView />,
+  () => composableLayout()
+);
 registerComponent('companies', () => <CompaniesRouteView />, {
   ownsCollectionState: true,
   splitPanelLayout: 'composable',
