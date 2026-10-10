@@ -24,7 +24,16 @@ if (isTauri()) {
   window.fetch = new Proxy(originalFetch, {
     apply: (target, thisArg, args) => {
       const url = args[0];
-      const urlString = url instanceof Request ? url.url : String(url);
+      // Resolve bundled asset paths before checking the existing localhost bypass.
+      let urlString: string;
+      try {
+        urlString = new URL(
+          url instanceof Request ? url.url : String(url),
+          document.baseURI
+        ).href;
+      } catch (error) {
+        return Promise.reject(error);
+      }
       if (urlString.includes('localhost')) {
         return target.apply(thisArg, args as Parameters<typeof fetch>);
       }
